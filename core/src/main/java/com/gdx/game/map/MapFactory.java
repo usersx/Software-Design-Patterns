@@ -1,10 +1,11 @@
 package com.gdx.game.map;
 
 import com.badlogic.gdx.utils.ObjectMap;
+import com.gdx.game.map.worldMap.*;
 
 public class MapFactory {
-    private static ObjectMap<MapType, Map> mapTable = new ObjectMap<>();
-    private static ObjectMap<MapType, String> mapPathTable = new ObjectMap<>();
+    private static final ObjectMap<MapType, Map> mapTable = new ObjectMap<>();
+    private static final ObjectMap<MapType, String> mapPathTable = new ObjectMap<>();
 
     public enum MapType {
         TOPPLE,         // 主城地图
@@ -27,8 +28,28 @@ public class MapFactory {
     public static Map getMap(MapType mapType) {
         Map map = mapTable.get(mapType);
         if (map == null) {
-            map = new GameMap(mapPathTable.get(mapType));
-            ((GameMap)map).setMapType(mapType);
+            switch (mapType) {
+                case TOPPLE:
+                    map = new ToppleMap();
+                    break;
+                case TOPPLE_ROAD_1:
+                    map = new ToppleRoad1Map();
+                    break;
+                case TOPPLE_ROAD_2:
+                    map = new ToppleRoad2Map();
+                    break;
+                case CASTLE:
+                    map = new CastleMap();
+                    break;
+                case DUNGEON:
+                    map = new DungeonMap();
+                    break;
+                case BATTLE_FIELD:
+                    map = new BattleFieldMap();
+                    break;
+                default:
+                    throw new IllegalArgumentException("Map type not implemented: " + mapType);
+            }
             mapTable.put(mapType, map);
         }
         return map;
@@ -39,5 +60,9 @@ public class MapFactory {
             map.dispose();
         }
         mapTable.clear();
+    }
+    
+    public static ObjectMap<MapType, Map> getMapTable() {
+        return mapTable;
     }
 }

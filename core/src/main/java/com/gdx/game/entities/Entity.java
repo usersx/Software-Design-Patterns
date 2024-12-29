@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputProcessor;
@@ -12,10 +12,10 @@ import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.maps.MapLayer;
+import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonValue;
@@ -29,13 +29,13 @@ import com.gdx.game.effect.EffectPriority;
 import com.gdx.game.effect.EntityEffect;
 import com.gdx.game.effect.PriorityEffectManager;
 import com.gdx.game.event.EntityEventManager;
+import com.gdx.game.map.GameMap;
 import com.gdx.game.map.MapManager;
 import com.gdx.game.profile.ProfileManager;
 import com.gdx.game.state.EntityState;
 import com.gdx.game.state.IdleState;
 import com.gdx.game.state.ImmobileState;
 import com.gdx.game.state.WalkingState;
-import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 
 public class Entity {
 
@@ -47,18 +47,6 @@ public class Entity {
 
 		static public Direction getRandomNext() {
 			return Direction.values()[MathUtils.random(Direction.values().length - 1)];
-		}
-
-		public Direction getOpposite() {
-			if (this == LEFT) {
-				return RIGHT;
-			} else if (this == RIGHT) {
-				return LEFT;
-			} else if (this == UP) {
-				return DOWN;
-			} else {
-				return UP;
-			}
 		}
 	}
 
@@ -102,14 +90,16 @@ public class Entity {
 	private PriorityEffectManager effectManager;
 
 	private float health = 100f;
-	private float baseSpeed = 5f;
+	private final float baseSpeed = 5f;
 	private float currentSpeed;
-	private Map<String, Boolean> visualEffects = new HashMap<>();
+	private final HashMap<String, Boolean> visualEffects = new HashMap<>();
 
 	// 攻击相关配置
 	private float attackRange = 2.0f;     // 攻击范围
 	private float attackAngle = 90f;      // 攻击角度范围(度)
 	private float attackDamage = 10f;     // 基础攻击伤害
+
+	private GameMap currentMap;
 
 	public Entity(Entity entity) {
 		set(entity);
@@ -117,7 +107,7 @@ public class Entity {
 		effectManager = new PriorityEffectManager(this);
 	}
 
-	private Entity set(Entity entity) {
+	private void set(Entity entity) {
 		inputComponent = entity.inputComponent;
 		graphicsComponent = entity.graphicsComponent;
 		physicsComponent = entity.physicsComponent;
@@ -131,9 +121,7 @@ public class Entity {
 		components.add(graphicsComponent);
 
 		json = entity.json;
-
 		entityConfig = new EntityConfig(entity.entityConfig);
-		return this;
 	}
 
 	public Entity(InputComponent inputCpnt, PhysicsComponent physicsCpnt, GraphicsComponent graphicsCpnt) {
@@ -147,8 +135,8 @@ public class Entity {
 		graphicsComponent = graphicsCpnt;
 
 		components.add(inputComponent);
-		components.add(physicsComponent);
-		components.add(graphicsComponent);
+		components.add(physicsCpnt);
+		components.add(graphicsCpnt);
 	}
 
 	public EntityConfig getEntityConfig() {
@@ -156,14 +144,14 @@ public class Entity {
 	}
 
 	public void sendMessage(Component.MESSAGE messageType, String ... args) {
-		String fullMessage = messageType.toString();
+		StringBuilder fullMessage = new StringBuilder(messageType.toString());
 
 		for(String string : args) {
-			fullMessage += Component.MESSAGE_TOKEN + string;
+			fullMessage.append(Component.MESSAGE_TOKEN).append(string);
 		}
 
 		for(Component component: components) {
-			component.receiveMessage(fullMessage);
+			component.receiveMessage(fullMessage.toString());
 		}
 	}
 
@@ -229,11 +217,12 @@ public class Entity {
 		return json.fromJson(EntityConfig.class, Gdx.files.internal(configFilePath));
 	}
 
+	@SuppressWarnings("unchecked")
 	public static Array<EntityConfig> getEntityConfigs(String configFilePath) {
 		Json json = new Json();
 		Array<EntityConfig> configs = new Array<>();
 
-    	ArrayList<JsonValue> list = json.fromJson(ArrayList.class, Gdx.files.internal(configFilePath));
+		ArrayList<JsonValue> list = json.fromJson(ArrayList.class, Gdx.files.internal(configFilePath));
 
 		for(JsonValue jsonVal : list) {
 			configs.add(json.readValue(EntityConfig.class, jsonVal));
@@ -244,23 +233,10 @@ public class Entity {
 
 	public static EntityConfig loadEntityConfigByPath(String entityConfigPath) {
 		EntityConfig entityConfig = Entity.getEntityConfig(entityConfigPath);
-		EntityConfig serializedConfig = ProfileManager.getInstance().getProperty(entityConfig.getEntityID(), EntityConfig.class);
-
-		if (serializedConfig == null) {
-			return entityConfig;
-		} else {
-			return serializedConfig;
-		}
-	}
-
-	public static EntityConfig loadEntityConfig(EntityConfig entityConfig) {
-		EntityConfig serializedConfig = ProfileManager.getInstance().getProperty(entityConfig.getEntityID(), EntityConfig.class);
-
-		if (serializedConfig == null) {
-			return entityConfig;
-		} else {
-			return serializedConfig;
-		}
+		return Objects.requireNonNullElse(
+			ProfileManager.getInstance().getProperty(entityConfig.getEntityID(), EntityConfig.class),
+			entityConfig
+		);
 	}
 
 	public static Entity initEntity(EntityConfig entityConfig, Vector2 position) {
@@ -270,42 +246,6 @@ public class Entity {
 
 		entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
 		entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(position));
-		entity.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(entity.getEntityConfig().getState()));
-		entity.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(entity.getEntityConfig().getDirection()));
-
-		return entity;
-	}
-
-	public static Hashtable<String, Entity> initEntities(Array<EntityConfig> configs) {
-		Json json = new Json();
-		Hashtable<String, Entity > entities = new Hashtable<>();
-		for(EntityConfig config: configs ) {
-			Entity entity = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
-
-			entity.setEntityConfig(config);
-			entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-			entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(new Vector2(0,0)));
-			entity.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(entity.getEntityConfig().getState()));
-			entity.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(entity.getEntityConfig().getDirection()));
-
-			entities.put(entity.getEntityConfig().getEntityID(), entity);
-		}
-
-		return entities;
-	}
-
-	public static Entity initEntity(EntityConfig entityConfig) {
-		Json json = new Json();
-		Entity entity;
-		if ("FOE".equals(entityConfig.getEntityStatus())) {
-			entity = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.ENEMY);
-		} else {
-			entity = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
-		}
-		entity.setEntityConfig(entityConfig);
-
-		entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-		entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(new Vector2(0,0)));
 		entity.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(entity.getEntityConfig().getState()));
 		entity.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(entity.getEntityConfig().getDirection()));
 
@@ -332,12 +272,6 @@ public class Entity {
 		entityState = newState;
 		if (entityState != null) {
 			entityState.enter(this);
-		}
-	}
-
-	public void updateState(float delta) {
-		if (entityState != null) {
-			entityState.update(this, delta);
 		}
 	}
 
@@ -401,14 +335,6 @@ public class Entity {
 		eventManager.dispatchEvent("healthChanged", this, health);
 	}
 
-	public void heal(float amount) {
-		health += amount;
-		if (health > 100) {
-			health = 100;
-		}
-		eventManager.dispatchEvent("healthChanged", this, health);
-	}
-
 	public void addVisualEffect(String effectName) {
 		visualEffects.put(effectName, true);
 		eventManager.dispatchEvent("visualEffectAdded", this, effectName);
@@ -417,43 +343,6 @@ public class Entity {
 	public void removeVisualEffect(String effectName) {
 		visualEffects.remove(effectName);
 		eventManager.dispatchEvent("visualEffectRemoved", this, effectName);
-	}
-
-	public boolean hasVisualEffect(String effectName) {
-		return visualEffects.containsKey(effectName);
-	}
-
-	public float getBaseSpeed() {
-		return baseSpeed;
-	}
-
-	public void setMoveSpeed(float speed) {
-		this.currentSpeed = speed;
-		eventManager.dispatchEvent("speedChanged", this, speed);
-	}
-
-	public float getCurrentSpeed() {
-		return currentSpeed;
-	}
-
-	public void addEffect(EntityEffect effect, EffectPriority priority) {
-		effectManager.addEffect(effect, priority);
-	}
-
-	public void removeEffect(Class<? extends EntityEffect> effectClass) {
-		effectManager.removeEffect(effectClass);
-	}
-
-	public boolean hasEffect(Class<? extends EntityEffect> effectClass) {
-		return effectManager.hasEffect(effectClass);
-	}
-
-	public EntityEffect getEffect(Class<? extends EntityEffect> effectClass) {
-		return effectManager.getEffect(effectClass);
-	}
-
-	public void clearEffects() {
-		effectManager.clearEffects();
 	}
 
 	/**
@@ -472,27 +361,6 @@ public class Entity {
 		}
 		
 		return baseDamage * damageMultiplier;
-	}
-
-	/**
-	 * 设置攻击范围
-	 */
-	public void setAttackRange(float range) {
-		this.attackRange = range;
-	}
-
-	/**
-	 * 设置攻击角度范围
-	 */
-	public void setAttackAngle(float angle) {
-		this.attackAngle = angle;
-	}
-
-	/**
-	 * 设置基础攻击伤害
-	 */
-	public void setAttackDamage(float damage) {
-		this.attackDamage = damage;
 	}
 
 	/**
@@ -520,13 +388,12 @@ public class Entity {
 	 * 获取当前朝向的向量
 	 */
 	private Vector2 getFacingDirection() {
-		switch (entityConfig.getDirection()) {
-			case UP:    return new Vector2(0, 1);
-			case DOWN:  return new Vector2(0, -1);
-			case LEFT:  return new Vector2(-1, 0);
-			case RIGHT: return new Vector2(1, 0);
-			default:    return null;
-		}
+		return switch (entityConfig.getDirection()) {
+			case UP -> new Vector2(0, 1);
+			case DOWN -> new Vector2(0, -1);
+			case LEFT -> new Vector2(-1, 0);
+			case RIGHT -> new Vector2(1, 0);
+		};
 	}
 
 	/**
@@ -562,9 +429,6 @@ public class Entity {
 		return null;
 	}
 
-	/**
-	 * 检查是否有障碍物阻挡
-	 */
 	private boolean hasObstacleBetween(Entity target) {
 		if (target == null) return true;
 
@@ -580,45 +444,17 @@ public class Entity {
 		if (collisionLayer == null) return false;
 
 		// 使用射线检测是否有障碍物
-		// TODO: 实现具体的射线检测逻辑
-		return false;
-	}
-
-	/**
-	 * 判断是否是敌对关系
-	 */
-	private boolean isEnemy(Entity other) {
-		// 如果目标是玩家，而自己是敌人，则为敌对
-		if (other.getEntityConfig().getEntityID().equals("PLAYER") && 
-			this.getEntityConfig().getEntityStatus().equals("FOE")) {
-			return true;
-		}
-		
-		// 如果自己是玩家，而目标是敌人，则为敌对
-		if (this.getEntityConfig().getEntityID().equals("PLAYER") && 
-			other.getEntityConfig().getEntityStatus().equals("FOE")) {
-			return true;
-		}
-		
-		return false;
-	}
-
-	/**
-	 * 获取当前所有活跃效果
-	 */
-	public List<EntityEffect> getActiveEffects() {
-		return effectManager.getActiveEffects();
+		RaycastResult result = new RaycastResult();
+		return raycast(start, end, result);
 	}
 
 	public boolean raycast(Vector2 start, Vector2 end, RaycastResult result) {
-		// 创建射线
-		Ray ray = new Ray(
-			new Vector3(start.x, start.y, 0),
-			new Vector3(end.x - start.x, end.y - start.y, 0).nor()
-		);
-		
+		if (currentMap == null) {
+			return false;
+		}
+
 		// 获取碰撞层
-		MapLayer collisionLayer = getCurrentMap().getCollisionLayer();
+		MapLayer collisionLayer = currentMap.getCollisionLayer();
 		if (collisionLayer == null) {
 			return false;
 		}
@@ -651,14 +487,18 @@ public class Entity {
 	}
 
 	private boolean checkCollisionAt(Vector2 point) {
-		MapLayer collisionLayer = getCurrentMap().getCollisionLayer();
+		if (currentMap == null) {
+			return false;
+		}
+		
+		MapLayer collisionLayer = currentMap.getCollisionLayer();
 		if (collisionLayer == null) {
 			return false;
 		}
 		
 		// 转换为瓦片坐标
-		int tileX = (int) (point.x / getCurrentMap().getTileWidth());
-		int tileY = (int) (point.y / getCurrentMap().getTileHeight());
+		int tileX = (int) (point.x / currentMap.getTileWidth());
+		int tileY = (int) (point.y / currentMap.getTileHeight());
 		
 		// 获取瓦片
 		TiledMapTileLayer.Cell cell = ((TiledMapTileLayer) collisionLayer).getCell(tileX, tileY);
@@ -671,12 +511,32 @@ public class Entity {
 		public final Vector2 point = new Vector2();
 		public final Vector2 normal = new Vector2();
 		public float distance;
-		
-		public void reset() {
-			point.setZero();
-			normal.setZero();
-			distance = 0;
-		}
 	}
 
+	public GameMap getCurrentMap() {
+		return currentMap;
+	}
+
+	public void setCurrentMap(GameMap map) {
+		this.currentMap = map;
+	}
+
+	/**
+	 * 判断是否是敌对关系
+	 */
+	private boolean isEnemy(Entity other) {
+		// 如果目标是玩家，而自己是敌人，则为敌对
+		if (other.getEntityConfig().getEntityID().equals("PLAYER") && 
+			this.getEntityConfig().getEntityStatus().equals("FOE")) {
+			return true;
+		}
+		
+		// 如果自己是玩家，而目标是敌人，则为敌对
+		if (this.getEntityConfig().getEntityID().equals("PLAYER") && 
+			other.getEntityConfig().getEntityStatus().equals("FOE")) {
+			return true;
+		}
+		
+		return false;
+	}
 }

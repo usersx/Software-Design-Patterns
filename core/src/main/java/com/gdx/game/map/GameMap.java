@@ -1,91 +1,37 @@
 package com.gdx.game.map;
 
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.maps.MapLayer;
 import com.badlogic.gdx.maps.tiled.TiledMap;
 import com.badlogic.gdx.maps.tiled.TmxMapLoader;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.gdx.game.entities.Entity;
-import com.badlogic.gdx.graphics.g2d.Batch;
-import com.gdx.game.audio.AudioManager;
-import com.gdx.game.audio.AudioObserver;
 
-public class GameMap extends Map {
-    private TiledMap tiledMap;
-    private String mapPath;
-    private Vector2 playerStartPosition;
-    private Array<Entity> mapEntities;
-    private Array<Entity> mapQuestEntities;
-    private MapFactory.MapType mapType;
-
-    public GameMap(String mapPath) {
+public abstract class GameMap implements Map {
+    protected final String mapPath;
+    protected MapFactory.MapType mapType;
+    protected final Array<Entity> mapEntities;
+    protected final Array<Entity> mapQuestEntities;
+    protected Vector2 playerStart;
+    protected TiledMap currentMap;
+    
+    public GameMap(String mapPath, MapFactory.MapType mapType) {
         this.mapPath = mapPath;
-        this.playerStartPosition = new Vector2(0, 0);
+        this.mapType = mapType;
         this.mapEntities = new Array<>();
         this.mapQuestEntities = new Array<>();
+        this.playerStart = new Vector2(0, 0);
         loadMap();
     }
-
+    
     private void loadMap() {
-        if (tiledMap != null) {
-            tiledMap.dispose();
+        if (currentMap != null) {
+            currentMap.dispose();
         }
-        
-        tiledMap = new TmxMapLoader().load(mapPath);
+        currentMap = new TmxMapLoader().load(mapPath);
     }
-
-    @Override
-    public void dispose() {
-        if (tiledMap != null) {
-            tiledMap.dispose();
-        }
-    }
-
-    @Override
-    public TiledMap getCurrentTiledMap() {
-        return tiledMap;
-    }
-
-    @Override
-    public Vector2 getPlayerStart() {
-        return playerStartPosition;
-    }
-
-    @Override
-    public void setPlayerStart(Vector2 position) {
-        this.playerStartPosition = position;
-    }
-
-    @Override
-    public Array<Entity> getMapEntities() {
-        return mapEntities;
-    }
-
-    @Override
-    public Array<Entity> getMapQuestEntities() {
-        return mapQuestEntities;
-    }
-
-    @Override
-    public MapLayer getCollisionLayer() {
-        return tiledMap.getLayers().get("collision");
-    }
-
-    @Override
-    public MapLayer getPortalLayer() {
-        return tiledMap.getLayers().get("portal");
-    }
-
-    @Override
-    public MapLayer getQuestDiscoverLayer() {
-        return tiledMap.getLayers().get("quest_discover");
-    }
-
-    @Override
-    public MapLayer getEnemySpawnLayer() {
-        return tiledMap.getLayers().get("enemy_spawn");
-    }
-
+    
     @Override
     public void updateMapEntities(MapManager mapMgr, Batch batch, float delta) {
         for (Entity entity : mapEntities) {
@@ -95,77 +41,90 @@ public class GameMap extends Map {
             entity.update(mapMgr, batch, delta);
         }
     }
-
+    
     @Override
-    public void setMapType(MapFactory.MapType type) {
-        this.mapType = type;
+    public Array<Entity> getMapEntities() {
+        return mapEntities;
     }
-
+    
+    @Override
+    public Array<Entity> getMapQuestEntities() {
+        return mapQuestEntities;
+    }
+    
+    @Override
+    public Vector2 getPlayerStart() {
+        return playerStart;
+    }
+    
+    @Override
+    public void setPlayerStart(Vector2 position) {
+        this.playerStart = position;
+    }
+    
+    @Override
+    public void setClosestStartPositionFromScaledUnits(Vector2 position) {
+        setPlayerStart(new Vector2(position.x * getTileWidth(), position.y * getTileHeight()));
+    }
+    
+    @Override
+    public TiledMap getCurrentTiledMap() {
+        return currentMap;
+    }
+    
     @Override
     public MapFactory.MapType getMapType() {
         return mapType;
     }
-
+    
     @Override
-    public Vector2 getPlayerStartUnitScaled() {
-        return super.getPlayerStartUnitScaled();
+    public float getTileWidth() {
+        return currentMap != null ? currentMap.getProperties().get("tilewidth", Integer.class) : 16f;
     }
-
+    
     @Override
-    public void setClosestStartPositionFromScaledUnits(Vector2 position) {
-        super.setClosestStartPositionFromScaledUnits(position);
+    public float getTileHeight() {
+        return currentMap != null ? currentMap.getProperties().get("tileheight", Integer.class) : 16f;
     }
-
-    @Override
-    public Array<Vector2> getQuestItemSpawnPositions(String objectName, String objectType) {
-        Array<Vector2> positions = new Array<>();
-        MapLayer questLayer = tiledMap.getLayers().get("quest_items");
-        
-        if (questLayer != null && questLayer.getObjects() != null) {
-            // 遍历所有地图对象
-            questLayer.getObjects().forEach(mapObject -> {
-                // 检查对象类型和名称是否匹配
-                if (mapObject.getProperties().containsKey("type") && 
-                    mapObject.getProperties().containsKey("name")) {
-                    
-                    String type = mapObject.getProperties().get("type", String.class);
-                    String name = mapObject.getProperties().get("name", String.class);
-                    
-                    if ((objectType == null || objectType.equals(type)) && 
-                        (objectName == null || objectName.equals(name))) {
-                        
-                        // 获取对象位置（Tiled中的坐标）
-                        float x = mapObject.getProperties().get("x", Float.class);
-                        float y = mapObject.getProperties().get("y", Float.class);
-                        
-                        // 转换为游戏世界坐标（像素坐标）
-                        Vector2 position = new Vector2(x, y);
-                        positions.add(position);
-                    }
-                }
-            });
-        }
-        
-        return positions;
-    }
-
+    
     @Override
     public void loadMusic() {
-        AudioManager.getInstance().onNotify(AudioObserver.AudioCommand.MUSIC_LOAD, getMusicTheme());
-        AudioManager.getInstance().onNotify(AudioObserver.AudioCommand.MUSIC_PLAY_LOOP, getMusicTheme());
+        // 默认实现为空，子类可以根据需要重写
     }
-
+    
     @Override
     public void unloadMusic() {
-        AudioManager.getInstance().onNotify(AudioObserver.AudioCommand.MUSIC_STOP, getMusicTheme());
+        // 默认实现为空，子类可以根据需要重写
     }
-
-    private AudioObserver.AudioTypeEvent getMusicTheme() {
-        // 根据地图类型返回对应的音乐主题
-        return switch (mapType) {
-            case TOPPLE -> AudioObserver.AudioTypeEvent.TOPPLE_THEME;
-            case BATTLE_FIELD -> AudioObserver.AudioTypeEvent.BATTLE_THEME;
-            default -> AudioObserver.AudioTypeEvent.TOPPLE_THEME;
-        };
+    
+    @Override
+    public void dispose() {
+        if (currentMap != null) {
+            currentMap.dispose();
+        }
     }
+    
+    @Override
+    public Vector2 getPlayerStartUnitScaled() {
+        return new Vector2(
+            playerStart.x / getTileWidth(),
+            playerStart.y / getTileHeight()
+        );
+    }
+    
+    // 抽象方法，需要子类实现
+    @Override
+    public abstract MapLayer getCollisionLayer();
+    
+    @Override
+    public abstract MapLayer getPortalLayer();
+    
+    @Override
+    public abstract MapLayer getQuestDiscoverLayer();
+    
+    @Override
+    public abstract MapLayer getEnemySpawnLayer();
+    
+    @Override
+    public abstract Array<Vector2> getQuestItemSpawnPositions(String objectName, String objectTaskID);
 } 

@@ -23,11 +23,11 @@ public class MapManager implements ProfileObserver {
 
     private Camera camera;
     private boolean mapChanged = false;
-    private com.gdx.game.map.Map currentMap;  // 使用自定义Map类型
+    private Map currentMap;  // 使用自定义Map类型
     private Entity player;
     private Entity currentSelectedEntity = null;
     private static MapManager instance;
-    private HashMap<String, Entity> combatEntities;  // 战斗中的实体
+    private final HashMap<String, Entity> combatEntities;  // 战斗中的实体
 
     public MapManager() {
         combatEntities = new HashMap<>();
@@ -37,7 +37,7 @@ public class MapManager implements ProfileObserver {
     @Override
     public void onNotify(ProfileManager profileManager, ProfileEvent event) {
         switch (event) {
-            case PROFILE_LOADED -> {
+            case PROFILE_LOADED:
                 String currentMapName = profileManager.getProperty("currentMapType", String.class);
                 MapFactory.MapType mapType;
                 if (currentMapName == null || currentMapName.isEmpty()) {
@@ -46,18 +46,16 @@ public class MapManager implements ProfileObserver {
                     mapType = MapFactory.MapType.valueOf(currentMapName);
                 }
                 loadMap(mapType);
-                
-                // 加载位置信息
                 loadPositions(profileManager);
-            }
-            case SAVING_PROFILE -> {
+                break;
+            case SAVING_PROFILE:
                 savePositions(profileManager);
-            }
-            case CLEAR_CURRENT_PROFILE -> {
+                break;
+            case CLEAR_CURRENT_PROFILE:
                 clearCurrentProfile(profileManager);
-            }
-            default -> {
-            }
+                break;
+            default:
+                break;
         }
     }
 
@@ -109,7 +107,7 @@ public class MapManager implements ProfileObserver {
     }
 
     public void loadMap(MapFactory.MapType mapType) {
-        com.gdx.game.map.Map map = MapFactory.getMap(mapType);  // 使用自定义Map类型
+        Map map = MapFactory.getMap(mapType);
         if (map == null) {
             LOGGER.debug("Map does not exist!");
             return;
@@ -180,11 +178,20 @@ public class MapManager implements ProfileObserver {
     }
 
     public MapFactory.MapType getCurrentMapType() {
-        return currentMap.getCurrentMapType();
+        if (currentMap == null) {
+            return MapFactory.MapType.TOPPLE;
+        }
+        return currentMap.getMapType();
     }
 
     public Vector2 getPlayerStartUnitScaled() {
-        return currentMap.getPlayerStartUnitScaled();
+        if (currentMap == null) {
+            loadMap(MapFactory.MapType.TOPPLE);
+        }
+        return new Vector2(
+            currentMap.getPlayerStart().x / currentMap.getTileWidth(),
+            currentMap.getPlayerStart().y / currentMap.getTileHeight()
+        );
     }
 
     public TiledMap getCurrentTiledMap() {
@@ -213,6 +220,7 @@ public class MapManager implements ProfileObserver {
     public void removeMapQuestEntity(Entity entity) {
         entity.unregisterObservers();
 
+        @SuppressWarnings("unchecked")
         Array<Vector2> positions = ProfileManager.getInstance().getProperty(entity.getEntityConfig().getEntityID(), Array.class);
         if (positions == null) {
             return;
@@ -226,10 +234,6 @@ public class MapManager implements ProfileObserver {
         }
         currentMap.getMapQuestEntities().removeValue(entity, true);
         ProfileManager.getInstance().setProperty(entity.getEntityConfig().getEntityID(), positions);
-    }
-
-    public void addMapEntity(Entity entity) {
-        currentMap.getMapEntities().add(entity);
     }
 
     public void removeMapEntity(Entity entity) {
@@ -263,12 +267,6 @@ public class MapManager implements ProfileObserver {
         }
         currentSelectedEntity.sendMessage(Component.MESSAGE.ENTITY_DESELECTED);
         currentSelectedEntity = null;
-    }
-
-    public void disableCurrentMapMusic() {
-        if (currentMap != null) {
-            currentMap.unloadMusic();
-        }
     }
 
     public void setPlayer(Entity entity) {
