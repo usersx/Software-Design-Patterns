@@ -1,11 +1,17 @@
 package com.gdx.game.screen;
 
+import java.util.HashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.maps.tiled.renderers.OrthogonalTiledMapRenderer;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -14,8 +20,13 @@ import com.gdx.game.GdxGame;
 import com.gdx.game.audio.AudioManager;
 import com.gdx.game.audio.AudioObserver;
 import com.gdx.game.camera.CameraStyles;
+import static com.gdx.game.common.Constats.FULL_CONTROLS_SETTINGS_PATH;
+import static com.gdx.game.common.Constats.PARTIAL_CONTROLS_SETTINGS_PATH;
+import static com.gdx.game.common.DefaultControlsMap.DEFAULT_CONTROLS;
 import com.gdx.game.component.Component;
 import com.gdx.game.component.ComponentObserver;
+import static com.gdx.game.component.InputComponent.playerControls;
+import static com.gdx.game.component.InputComponent.setPlayerControlMapFromJsonControlsMap;
 import com.gdx.game.entities.Entity;
 import com.gdx.game.entities.EntityFactory;
 import com.gdx.game.entities.player.PlayerHUD;
@@ -25,17 +36,6 @@ import com.gdx.game.map.Map;
 import com.gdx.game.map.MapFactory;
 import com.gdx.game.map.MapManager;
 import com.gdx.game.profile.ProfileManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-
-import static com.gdx.game.common.Constats.FULL_CONTROLS_SETTINGS_PATH;
-import static com.gdx.game.common.Constats.PARTIAL_CONTROLS_SETTINGS_PATH;
-import static com.gdx.game.common.DefaultControlsMap.DEFAULT_CONTROLS;
-import static com.gdx.game.component.InputComponent.playerControls;
-import static com.gdx.game.component.InputComponent.setPlayerControlMapFromJsonControlsMap;
 
 public class GameScreen extends BaseScreen implements ComponentObserver {
 
@@ -69,7 +69,7 @@ public class GameScreen extends BaseScreen implements ComponentObserver {
     private final GdxGame game;
     private final InputMultiplexer multiplexer;
 
-    private final Entity player;
+    private Entity player;
     private final PlayerHUD playerHUD;
 
     private float startX;
@@ -96,7 +96,7 @@ public class GameScreen extends BaseScreen implements ComponentObserver {
         camera = new OrthographicCamera();
         camera.setToOrtho(false, VIEWPORT.viewportWidth, VIEWPORT.viewportHeight);
 
-        player = EntityFactory.getInstance().getEntity(ProfileManager.getInstance().getProperty("playerCharacter", EntityFactory.EntityType.class));
+        initializePlayer();
         player.registerObserver(this);
 
         //initialize controls
@@ -211,7 +211,7 @@ public class GameScreen extends BaseScreen implements ComponentObserver {
         switch (event) {
             case START_BATTLE -> {
                 setGameState(GameState.SAVING);
-                setScreenWithTransition((BaseScreen) gdxGame.getScreen(), new BattleScreen(game, playerHUD, mapManager, resourceManager), new ArrayList<>());
+                game.setScreen(new BattleScreen(game, playerHUD, mapManager, resourceManager));
                 PlayerInputComponent.clear();
             }
             case OPTION_INPUT -> {
@@ -315,5 +315,24 @@ public class GameScreen extends BaseScreen implements ComponentObserver {
         LOGGER.debug("WorldRenderer: virtual: ({},{})", VIEWPORT.virtualWidth, VIEWPORT.virtualHeight);
         LOGGER.debug("WorldRenderer: viewport: ({},{})", VIEWPORT.viewportWidth, VIEWPORT.viewportHeight);
         LOGGER.debug("WorldRenderer: physical: ({},{})", VIEWPORT.physicalWidth, VIEWPORT.physicalHeight);
+    }
+
+    private void initializePlayer() {
+        // 从配置文件中获取玩家角色类型
+        EntityFactory.EntityType playerType = ProfileManager.getInstance().getProperty("playerCharacter", EntityFactory.EntityType.class);
+        if (playerType == null) {
+            playerType = EntityFactory.EntityType.WARRIOR; // 默认使用战士
+        }
+        
+        // 使用工厂创建玩家实体
+        player = EntityFactory.getInstance().getEntity(playerType);
+        
+        // 初始化玩家位置和状态
+        Vector2 startPosition = mapManager.getPlayerStartUnitScaled();
+        if (startPosition != null) {
+            player.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(startPosition));
+        }
+        player.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(player.getEntityConfig().getState()));
+        player.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(player.getEntityConfig().getDirection()));
     }
 }

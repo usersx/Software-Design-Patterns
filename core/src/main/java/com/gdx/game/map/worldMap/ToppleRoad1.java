@@ -1,38 +1,47 @@
 package com.gdx.game.map.worldMap;
 
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Json;
 import com.gdx.game.audio.AudioObserver;
+import static com.gdx.game.audio.AudioObserver.AudioTypeEvent.TOPPLE_THEME;
 import com.gdx.game.component.Component;
 import com.gdx.game.entities.Entity;
-import com.gdx.game.entities.EntityConfig;
 import com.gdx.game.entities.EntityFactory;
 import com.gdx.game.map.Map;
 import com.gdx.game.map.MapFactory;
-import com.gdx.game.profile.ProfileManager;
-
-import static com.gdx.game.audio.AudioObserver.AudioTypeEvent.TEST_THEME;
 
 public class ToppleRoad1 extends Map {
+    private static final String TAG = ToppleRoad1.class.getSimpleName();
+    private final Json json;
 
-    private static String mapPath = "asset/map/Topple_Road_1.tmx";
+    private static final String MAP_PATH = "maps/topple_road1.tmx";
+    private static final Vector2 PLAYER_START = new Vector2(10, 10);
 
     public ToppleRoad1() {
-        super(MapFactory.MapType.TOPPLE_ROAD_1, mapPath);
+        super(MapFactory.MapType.TOPPLE_ROAD1, MAP_PATH);
+        json = new Json();
 
-        //Special cases
-        Entity rabite = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.RABITE);
-        initSpecialEntityPosition(rabite);
+        // 创建敌人实体
+        Entity rabite = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.ENEMY);
+        initSpecialEntityPosition(rabite, new Vector2(15, 15));
         mapEntities.add(rabite);
 
-        Entity rabite2 = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.RABITE2);
-        initSpecialEntityPosition(rabite2);
+        Entity rabite2 = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.ENEMY);
+        initSpecialEntityPosition(rabite2, new Vector2(20, 20));
         mapEntities.add(rabite2);
 
+        playerStart = PLAYER_START;
+    }
+
+    private void initSpecialEntityPosition(Entity entity, Vector2 position) {
+        entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(position));
+        entity.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(entity.getEntityConfig().getState()));
+        entity.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(entity.getEntityConfig().getDirection()));
     }
 
     @Override
     public AudioObserver.AudioTypeEvent getMusicTheme() {
-        return TEST_THEME;
+        return TOPPLE_THEME;
     }
 
     @Override
@@ -44,20 +53,5 @@ public class ToppleRoad1 extends Map {
     public void loadMusic() {
         notify(AudioObserver.AudioCommand.MUSIC_LOAD, getMusicTheme());
         notify(AudioObserver.AudioCommand.MUSIC_PLAY_LOOP, getMusicTheme());
-    }
-
-    private void initSpecialEntityPosition(Entity entity) {
-        Vector2 position = new Vector2(0,0);
-
-        if (enemyStartPositions.containsKey(entity.getEntityConfig().getEntityID())) {
-            position = enemyStartPositions.get(entity.getEntityConfig().getEntityID());
-        }
-        entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(position));
-
-        //Overwrite default if special config is found
-        EntityConfig entityConfig = ProfileManager.getInstance().getProperty(entity.getEntityConfig().getEntityID(), EntityConfig.class);
-        if (entityConfig != null ) {
-            entity.setEntityConfig(entityConfig);
-        }
     }
 }

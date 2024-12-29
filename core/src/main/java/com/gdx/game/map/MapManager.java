@@ -15,6 +15,9 @@ import com.gdx.game.profile.ProfileManager;
 import com.gdx.game.profile.ProfileObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.HashMap;
 
 public class MapManager implements ProfileObserver {
 
@@ -22,82 +25,108 @@ public class MapManager implements ProfileObserver {
 
     private Camera camera;
     private boolean mapChanged = false;
-    private Map currentMap;
+    private com.gdx.game.map.Map currentMap;  // 使用自定义Map类型
     private Entity player;
     private Entity currentSelectedEntity = null;
+    private static MapManager instance;
+    private HashMap<String, Entity> combatEntities;  // 战斗中的实体
 
     public MapManager() {
-        // Nothing
+        combatEntities = new HashMap<>();
+        instance = this;
     }
 
     @Override
     public void onNotify(ProfileManager profileManager, ProfileEvent event) {
         switch (event) {
             case PROFILE_LOADED -> {
-                String currentMap = profileManager.getProperty("currentMapType", String.class);
+                String currentMapName = profileManager.getProperty("currentMapType", String.class);
                 MapFactory.MapType mapType;
-                if (currentMap == null || currentMap.isEmpty()) {
+                if (currentMapName == null || currentMapName.isEmpty()) {
                     mapType = MapFactory.MapType.TOPPLE;
                 } else {
-                    mapType = MapFactory.MapType.valueOf(currentMap);
+                    mapType = MapFactory.MapType.valueOf(currentMapName);
                 }
                 loadMap(mapType);
-                Vector2 toppleRoad1MapStartPosition = profileManager.getProperty("toppleRoad1MapStartPosition", Vector2.class);
-                if (toppleRoad1MapStartPosition != null) {
-                    MapFactory.getMap(MapFactory.MapType.TOPPLE_ROAD_1).setPlayerStart(toppleRoad1MapStartPosition);
-                }
-                Vector2 toppleMapStartPosition = profileManager.getProperty("toppleMapStartPosition", Vector2.class);
-                if (toppleMapStartPosition != null) {
-                    MapFactory.getMap(MapFactory.MapType.TOPPLE).setPlayerStart(toppleMapStartPosition);
-                }
-                Vector2 currentPlayerPosition = profileManager.getProperty("currentPlayerPosition", Vector2.class);
-                if (currentPlayerPosition != null && !currentPlayerPosition.equals(new Vector2(0, 0))) {
-                    Vector2 currentPositionOnMap = new Vector2(currentPlayerPosition.x * 16, currentPlayerPosition.y * 16);
-                    MapFactory.getMap(this.currentMap.currentMapType).setPlayerStart(currentPositionOnMap);
-                }
+                
+                // 加载位置信息
+                loadPositions(profileManager);
             }
             case SAVING_PROFILE -> {
-                if (this.currentMap != null) {
-                    profileManager.setProperty("currentMapType", this.currentMap.currentMapType.toString());
-                }
-                profileManager.setProperty("currentPlayerPosition", player.getCurrentPosition());
-                profileManager.setProperty("toppleMapStartPosition", MapFactory.getMap(MapFactory.MapType.TOPPLE).getPlayerStart());
-                profileManager.setProperty("toppleRoad1MapStartPosition", MapFactory.getMap(MapFactory.MapType.TOPPLE_ROAD_1).getPlayerStart());
-                if (Gdx.input.isKeyPressed(Input.Keys.ESCAPE)) {
-                    profileManager.setProperty("currentPlayerPosition", null);
-                }
+                savePositions(profileManager);
             }
             case CLEAR_CURRENT_PROFILE -> {
-                this.currentMap = null;
-                profileManager.setProperty("currentPlayerPosition", null);
-                profileManager.setProperty("currentMapType", MapFactory.MapType.TOPPLE.toString());
-                MapFactory.clearCache();
-                profileManager.setProperty("toppleMapStartPosition", MapFactory.getMap(MapFactory.MapType.TOPPLE).getPlayerStart());
-                profileManager.setProperty("toppleRoad1MapStartPosition", MapFactory.getMap(MapFactory.MapType.TOPPLE_ROAD_1).getPlayerStart());
+                clearCurrentProfile(profileManager);
             }
             default -> {
             }
         }
     }
 
-    public void loadMap(MapFactory.MapType mapType) {
-        Map map = MapFactory.getMap(mapType);
+    private void loadPositions(ProfileManager profileManager) {
+        // 加载道路1起始位置
+        Vector2 toppleRoad1Pos = profileManager.getProperty("toppleRoad1MapStartPosition", Vector2.class);
+        if (toppleRoad1Pos != null) {
+            MapFactory.getMap(MapFactory.MapType.TOPPLE_ROAD_1).setPlayerStart(toppleRoad1Pos);
+        }
 
+        // 加载主城起始位置
+        Vector2 topplePos = profileManager.getProperty("toppleMapStartPosition", Vector2.class);
+        if (topplePos != null) {
+            MapFactory.getMap(MapFactory.MapType.TOPPLE).setPlayerStart(topplePos);
+        }
+
+        // 加载当前玩家位置
+        Vector2 playerPos = profileManager.getProperty("currentPlayerPosition", Vector2.class);
+        if (playerPos != null && !playerPos.equals(new Vector2(0, 0))) {
+            Vector2 scaledPos = new Vector2(playerPos.x * 16, playerPos.y * 16);
+            if (currentMap != null) {
+                MapFactory.getMap(currentMap.getMapType()).setPlayerStart(scaledPos);
+            }
+        }
+    }
+
+    private void savePositions(ProfileManager profileManager) {
+        if (currentMap != null) {
+            profileManager.setProperty("currentMapType", currentMap.getMapType().toString());
+        }
+        if (player != null) {
+            profileManager.setProperty("currentPlayerPosition", player.getCurrentPosition());
+        }
+        profileManager.setProperty("toppleMapStartPosition", 
+            MapFactory.getMap(MapFactory.MapType.TOPPLE).getPlayerStart());
+        profileManager.setProperty("toppleRoad1MapStartPosition", 
+            MapFactory.getMap(MapFactory.MapType.TOPPLE_ROAD_1).getPlayerStart());
+    }
+
+    private void clearCurrentProfile(ProfileManager profileManager) {
+        currentMap = null;
+        profileManager.setProperty("currentPlayerPosition", null);
+        profileManager.setProperty("currentMapType", MapFactory.MapType.TOPPLE.toString());
+        MapFactory.clearCache();
+        profileManager.setProperty("toppleMapStartPosition", 
+            MapFactory.getMap(MapFactory.MapType.TOPPLE).getPlayerStart());
+        profileManager.setProperty("toppleRoad1MapStartPosition", 
+            MapFactory.getMap(MapFactory.MapType.TOPPLE_ROAD_1).getPlayerStart());
+    }
+
+    public void loadMap(MapFactory.MapType mapType) {
+        com.gdx.game.map.Map map = MapFactory.getMap(mapType);  // 使用自定义Map类型
         if (map == null) {
             LOGGER.debug("Map does not exist!");
             return;
         }
 
-        if (currentMap != null && currentMap.getMusicTheme() != map.getMusicTheme()) {
+        // 处理音乐
+        if (currentMap != null) {
             currentMap.unloadMusic();
         }
-
         map.loadMusic();
 
+        // 更新当前地图
         currentMap = map;
         mapChanged = true;
         clearCurrentSelectedMapEntity();
-        LOGGER.debug("Player Start: ({},{})", currentMap.getPlayerStart().x, currentMap.getPlayerStart().y);
     }
 
     public void unregisterCurrentMapEntityObservers() {
@@ -217,7 +246,9 @@ public class MapManager implements ProfileObserver {
     }
 
     public void clearAllMapQuestEntities() {
-        currentMap.getMapQuestEntities().clear();
+        if (currentMap != null) {
+            currentMap.getMapQuestEntities().clear();
+        }
     }
 
     public Entity getCurrentSelectedMapEntity() {
@@ -236,8 +267,10 @@ public class MapManager implements ProfileObserver {
         currentSelectedEntity = null;
     }
 
-    public void disableCurrentMapMusic(){
-        currentMap.unloadMusic();
+    public void disableCurrentMapMusic() {
+        if (currentMap != null) {
+            currentMap.unloadMusic();
+        }
     }
 
     public void setPlayer(Entity entity) {
@@ -262,5 +295,79 @@ public class MapManager implements ProfileObserver {
 
     public void setMapChanged(boolean hasMapChanged) {
         this.mapChanged = hasMapChanged;
+    }
+
+    public static MapManager getInstance() {
+        if (instance == null) {
+            instance = new MapManager();
+        }
+        return instance;
+    }
+
+    /**
+     * 获取指定范围内的所有实体
+     */
+    public List<Entity> getNearbyEntities(Vector2 position, float range) {
+        List<Entity> result = new ArrayList<>();
+        
+        // 检查地图实体
+        if (currentMap != null) {
+            Array<Entity> mapEntities = currentMap.getMapEntities();
+            for (Entity entity : mapEntities) {
+                float distance = position.dst(entity.getCurrentPosition());
+                if (distance <= range) {
+                    result.add(entity);
+                }
+            }
+        }
+        
+        // 检查战斗实体
+        for (Entity entity : combatEntities.values()) {
+            float distance = position.dst(entity.getCurrentPosition());
+            if (distance <= range) {
+                result.add(entity);
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 添加战斗实体
+     */
+    public void addCombatEntity(Entity entity) {
+        if (entity != null && entity.getEntityConfig() != null) {
+            combatEntities.put(entity.getEntityConfig().getEntityID(), entity);
+        }
+    }
+    
+    /**
+     * 移除战斗实体
+     */
+    public void removeCombatEntity(Entity entity) {
+        if (entity != null && entity.getEntityConfig() != null) {
+            combatEntities.remove(entity.getEntityConfig().getEntityID());
+        }
+    }
+    
+    /**
+     * 清除所有战斗实体
+     */
+    public void clearCombatEntities() {
+        combatEntities.clear();
+    }
+
+    /**
+     * 获取当前选中的实体
+     */
+    public Entity getCurrentSelectedEntity() {
+        return currentSelectedEntity;
+    }
+    
+    /**
+     * 设置当前选中的实体
+     */
+    public void setCurrentSelectedEntity(Entity entity) {
+        currentSelectedEntity = entity;
     }
 }

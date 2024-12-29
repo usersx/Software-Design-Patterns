@@ -714,4 +714,8 @@ public class PlayerHUD implements Screen, AudioSubject, ProfileObserver, ClassOb
             observer.onNotify(command, event);
         }
     }
+
+    public Entity getPlayer() {
+        return player;
+    }
 }

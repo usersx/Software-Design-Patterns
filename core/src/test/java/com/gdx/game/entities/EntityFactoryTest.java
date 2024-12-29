@@ -1,72 +1,62 @@
 package com.gdx.game.entities;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.GL20;
-import com.gdx.game.GdxRunner;
+import com.gdx.game.component.GraphicsComponent;
+import com.gdx.game.component.InputComponent;
+import com.gdx.game.component.PhysicsComponent;
 import com.gdx.game.entities.npc.NPCGraphicsComponent;
 import com.gdx.game.entities.npc.NPCInputComponent;
+import com.gdx.game.entities.npc.NPCPhysicsComponent;
+import com.gdx.game.entities.npc.enemy.EnemyPhysicsComponent;
 import com.gdx.game.entities.player.PlayerGraphicsComponent;
 import com.gdx.game.entities.player.PlayerInputComponent;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import com.gdx.game.entities.player.PlayerPhysicsComponent;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedConstruction;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
+import static org.junit.jupiter.api.Assertions.*;
 
-@ExtendWith(GdxRunner.class)
-public class EntityFactoryTest {
-
-    private MockedConstruction<PlayerGraphicsComponent> mockPlayerGraphics;
-
-    private MockedConstruction<NPCGraphicsComponent> mockNPCGraphics;
-
-    @BeforeEach
-    void init() {
-        Gdx.gl = mock(GL20.class);
-        Gdx.gl20 = mock(GL20.class);
-        mockPlayerGraphics = mockConstruction(PlayerGraphicsComponent.class);
-        mockNPCGraphics = mockConstruction(NPCGraphicsComponent.class);
-    }
-
-    @AfterEach
-    void end() {
-        mockPlayerGraphics.close();
-        mockNPCGraphics.close();
-    }
+class EntityFactoryTest {
 
     @Test
-    public void testGetInstance_ShouldSucceed() {
+    void testGetInstance() {
         EntityFactory entityFactory = EntityFactory.getInstance();
-
-        assertThat(entityFactory).isNotNull();
+        assertNotNull(entityFactory);
+        assertSame(entityFactory, EntityFactory.getInstance());
     }
 
     @Test
-    public void testGetEntity_ShouldSucceedWithPlayer() {
+    void testGetPlayerEntity() {
         Entity entity = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.WARRIOR);
-
-        assertThat(entity).isNotNull();
-        assertThat(entity.getEntityConfig().getEntityID()).isEqualTo(Entity.getEntityConfig(EntityFactory.PLAYER_WARRIOR_CONFIG).getEntityID());
-        assertThat(entity.getInputProcessor()).isInstanceOf(PlayerInputComponent.class);
+        
+        assertNotNull(entity);
+        assertTrue(entity.getInputComponent() instanceof PlayerInputComponent);
+        assertTrue(entity.getPhysicsComponent() instanceof PlayerPhysicsComponent);
+        assertTrue(entity.getGraphicsComponent() instanceof PlayerGraphicsComponent);
     }
 
     @Test
-    public void testGetEntity_ShouldSucceedWithNPC() {
+    void testGetNPCEntity() {
         Entity entity = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
-
-        assertThat(entity).isNotNull();
-        assertThat(entity.getInputProcessor()).isInstanceOf(NPCInputComponent.class);
+        
+        assertNotNull(entity);
+        assertTrue(entity.getInputComponent() instanceof NPCInputComponent);
+        assertTrue(entity.getPhysicsComponent() instanceof NPCPhysicsComponent);
+        assertTrue(entity.getGraphicsComponent() instanceof NPCGraphicsComponent);
     }
 
     @Test
-    public void testGetEntityByName_ShouldSucceed() {
-        Entity entity = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.TOWN_BLACKSMITH);
+    void testGetEnemyEntity() {
+        Entity entity = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.ENEMY);
+        
+        assertNotNull(entity);
+        assertTrue(entity.getInputComponent() instanceof NPCInputComponent);
+        assertTrue(entity.getPhysicsComponent() instanceof EnemyPhysicsComponent);
+        assertTrue(entity.getGraphicsComponent() instanceof NPCGraphicsComponent);
+    }
 
-        assertThat(entity).isNotNull();
-        assertThat(entity.getInputProcessor()).isInstanceOf(NPCInputComponent.class);
+    @Test
+    void testGetInvalidEntityType() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            EntityFactory.getInstance().getEntity(null);
+        });
     }
 }

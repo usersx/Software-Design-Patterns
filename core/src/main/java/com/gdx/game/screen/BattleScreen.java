@@ -1,156 +1,83 @@
 package com.gdx.game.screen;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.viewport.StretchViewport;
+import com.badlogic.gdx.utils.Json;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.gdx.game.GdxGame;
-import com.gdx.game.audio.AudioObserver;
 import com.gdx.game.battle.BattleHUD;
-import com.gdx.game.battle.BattleInventoryUI;
-import com.gdx.game.battle.BattleObserver;
 import com.gdx.game.battle.BattleState;
+import com.gdx.game.component.Component;
 import com.gdx.game.entities.Entity;
+import com.gdx.game.entities.EntityFactory;
 import com.gdx.game.entities.player.PlayerHUD;
-import com.gdx.game.inventory.item.InventoryItemLocation;
-import com.gdx.game.inventory.InventoryObserver;
-import com.gdx.game.inventory.InventoryUI;
 import com.gdx.game.manager.ResourceManager;
 import com.gdx.game.map.MapManager;
-import com.gdx.game.profile.ProfileManager;
-import com.gdx.game.screen.transition.effects.FadeOutTransitionEffect;
-import com.gdx.game.screen.transition.effects.TransitionEffect;
 
-import java.util.ArrayList;
+public class BattleScreen extends BaseScreen {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BattleScreen.class);
+    private static final Json json = new Json();
+    private static final float VIEWPORT_WIDTH = 10f;
+    private static final float VIEWPORT_HEIGHT = 10f;
 
-import static com.gdx.game.audio.AudioObserver.AudioTypeEvent.BATTLE_THEME;
+    private final OrthographicCamera camera;
+    private final FitViewport viewport;
+    private final BattleHUD battleHUD;
+    private final BattleState battleState;
+    private Entity player;
+    private Entity enemy;
 
-public class BattleScreen extends BaseScreen implements BattleObserver {
-
-    private InputMultiplexer multiplexer;
-    private OrthographicCamera camera;
-    private Stage battleStage;
-    private MapManager mapManager;
-    private PlayerHUD playerHUD;
-    private BattleHUD battleHUD;
-
-    private BattleState battleState;
-
-    public BattleScreen(GdxGame gdxGame, PlayerHUD playerHUD_, MapManager mapManager_, ResourceManager resourceManager) {
+    public BattleScreen(GdxGame gdxGame, PlayerHUD playerHUD, MapManager mapManager, ResourceManager resourceManager) {
         super(gdxGame, resourceManager);
-        super.musicTheme = BATTLE_THEME;
-        this.mapManager = mapManager_;
-        this.playerHUD = playerHUD_;
-
-        battleState = new BattleState();
-        battleState.addObserver(this);
-        playerHUD.setBattleState(battleState);
+        
+        // 设置相机和视口
         camera = new OrthographicCamera();
-        camera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        viewport = new StretchViewport(camera.viewportWidth, camera.viewportHeight, camera);
-        battleStage = new Stage(viewport, gdxGame.getBatch());
-        battleHUD = new BattleHUD(mapManager, battleStage, battleState);
-
-        multiplexer = new InputMultiplexer();
-        multiplexer.addProcessor(battleHUD.getBattleHUDStage());
-    }
-
-    protected BattleHUD getBattleHUD() {
-        return battleHUD;
-    }
-
-    private void removeEntities() {
-        Array<Entity> entities = mapManager.getCurrentMapEntities();
-        for(Entity entity: entities) {
-            if (entity.getEntityConfig().getEntityID().equals(mapManager.getPlayer().getEntityEncounteredType().toString())) {
-                mapManager.removeMapEntity(entity);
-            }
-        }
-        mapManager.getPlayer().setEntityEncounteredType(null);
-    }
-
-    private void setupGameOver() {
-        battleHUD.getDmgOpponentValLabel().setVisible(false);
-        battleHUD.getDmgPlayerValLabel().setVisible(false);
-        battleHUD.getBattleUI().setVisible(false);
-        battleHUD.getBattleStatusUI().setVisible(false);
-        battleStage.draw();
-
-        ArrayList<TransitionEffect> effects = new ArrayList<>();
-        effects.add(new FadeOutTransitionEffect(1f));
-        setScreenWithTransition((BaseScreen) gdxGame.getScreen(), new GameOverScreen(gdxGame, mapManager, resourceManager), effects);
-    }
-
-    private void refreshStatus() {
-        playerHUD.getStatusUI().setHPValue(battleHUD.getBattleStatusUI().getHPValue());
-        playerHUD.getStatusUI().setMPValue(battleHUD.getBattleStatusUI().getMPValue());
-    }
-
-    private void refreshInventory() {
-        Array<InventoryItemLocation> inventory = BattleInventoryUI.getInventory(battleHUD.getBattleInventoryUI().getInventorySlotTable());
-        InventoryUI.populateInventory(playerHUD.getInventoryUI().getInventorySlotTable(), inventory, playerHUD.getInventoryUI().getDragAndDrop(), InventoryUI.PLAYER_INVENTORY, false);
-    }
-
-    @Override
-    public void onNotify(Entity entity, BattleEvent event) {
-        switch (event) {
-            case RESUME_OVER -> {
-                refreshStatus();
-                refreshInventory();
-                ProfileManager.getInstance().saveProfile();
-                setScreenWithTransition((BaseScreen) gdxGame.getScreen(), gdxGame.getGameScreen(), new ArrayList<>());
-                removeEntities();
-            }
-            case OPPONENT_TURN_DONE -> {
-                if (GameScreen.getGameState() == GameScreen.GameState.GAME_OVER) {
-                    setupGameOver();
-                }
-            }
-            case PLAYER_RUNNING -> {
-                refreshStatus();
-                refreshInventory();
-                setScreenWithTransition((BaseScreen) gdxGame.getScreen(), gdxGame.getGameScreen(), new ArrayList<>());
-                removeEntities();
-            }
-            default -> {
-            }
-        }
-    }
-
-    @Override
-    public void onNotify(String drop, InventoryObserver.InventoryEvent event) {
-
-    }
-
-    @Override
-    public void show() {
-        Gdx.input.setInputProcessor(multiplexer);
-
-        notify(AudioObserver.AudioCommand.MUSIC_LOAD, BATTLE_THEME);
-        notify(AudioObserver.AudioCommand.MUSIC_PLAY_LOOP, BATTLE_THEME);
+        viewport = new FitViewport(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, camera);
+        viewport.apply(true);
+        
+        // 从PlayerHUD获取玩家实体
+        this.player = playerHUD.getPlayer();
+        
+        // 创建敌人实体
+        this.enemy = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.ENEMY);
+        enemy.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(enemy.getEntityConfig().getState()));
+        enemy.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(enemy.getEntityConfig().getDirection()));
+        
+        // 创建战斗HUD和状态
+        battleHUD = new BattleHUD(player, enemy);
+        battleState = new BattleState(battleHUD);
+        
+        LOGGER.debug("BattleScreen: viewport: ({},{})", VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
     }
 
     @Override
     public void render(float delta) {
-        gdxGame.getBatch().setProjectionMatrix(camera.combined);
-
-        gdxGame.getBatch().begin();
-        gdxGame.getBatch().draw(resourceManager.battleBackgroundMeadow, 0,0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        gdxGame.getBatch().end();
-
-        battleStage.act(Gdx.graphics.getDeltaTime());
-        battleStage.draw();
-
+        Gdx.gl.glClearColor(0, 0, 0, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        
+        viewport.apply();
+        battleState.update(delta);
         battleHUD.render(delta);
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        viewport.update(width, height, true);
     }
 
     @Override
     public void dispose() {
         super.dispose();
-        battleStage.dispose();
         battleHUD.dispose();
-        playerHUD.dispose();
+        if (player != null) {
+            player.dispose();
+        }
+        if (enemy != null) {
+            enemy.dispose();
+        }
     }
 }

@@ -1,5 +1,7 @@
 package com.gdx.game.component;
 
+import java.util.Hashtable;
+
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.Batch;
@@ -12,8 +14,9 @@ import com.badlogic.gdx.utils.Json;
 import com.gdx.game.entities.Entity;
 import com.gdx.game.manager.ResourceManager;
 import com.gdx.game.map.MapManager;
-
-import java.util.Hashtable;
+import com.gdx.game.entities.Entity.AnimationType;
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class GraphicsComponent extends ComponentSubject implements Component {
     protected TextureRegion currentFrame = null;
@@ -24,6 +27,9 @@ public abstract class GraphicsComponent extends ComponentSubject implements Comp
     protected Vector2 currentPosition;
     protected Hashtable<Entity.AnimationType, Animation<TextureRegion>> animations;
     protected ShapeRenderer shapeRenderer;
+    private Map<AnimationType, Animation<TextureRegion>> animations;
+    private Animation<TextureRegion> currentAnimation;
+    private float stateTime = 0f;
 
     protected GraphicsComponent() {
         currentPosition = new Vector2(0,0);
@@ -173,5 +179,42 @@ public abstract class GraphicsComponent extends ComponentSubject implements Comp
 
     public Animation<TextureRegion> getAnimation(Entity.AnimationType type) {
         return animations.get(type);
+    }
+
+    /**
+     * 触发指定的动画
+     * @param animationName 动画名称
+     */
+    public void triggerAnimation(String animationName) {
+        // 根据动画名称获取对应的动画状态
+        AnimationType animationType = getAnimationTypeByName(animationName);
+        if (animationType != null) {
+            currentAnimation = animations.get(animationType);
+            stateTime = 0f;
+        }
+    }
+
+    /**
+     * 根据动画名称获取动画类型
+     */
+    private AnimationType getAnimationTypeByName(String name) {
+        switch (name.toLowerCase()) {
+            case "attack":
+                return AnimationType.LOOK_RIGHT; // 暂时使用LOOK_RIGHT作为攻击动画
+            case "walk_left":
+                return AnimationType.WALK_LEFT;
+            case "walk_right":
+                return AnimationType.WALK_RIGHT;
+            case "walk_up":
+                return AnimationType.WALK_UP;
+            case "walk_down":
+                return AnimationType.WALK_DOWN;
+            case "idle":
+                return AnimationType.IDLE;
+            case "immobile":
+                return AnimationType.IMMOBILE;
+            default:
+                return null;
+        }
     }
 }

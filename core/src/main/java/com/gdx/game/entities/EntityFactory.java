@@ -1,23 +1,25 @@
 package com.gdx.game.entities;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Json;
 import com.gdx.game.component.Component;
-import com.gdx.game.entities.npc.NPCGraphicsComponent;
-import com.gdx.game.entities.npc.NPCInputComponent;
-import com.gdx.game.entities.npc.NPCPhysicsComponent;
-import com.gdx.game.entities.npc.enemy.EnemyPhysicsComponent;
-import com.gdx.game.entities.player.PlayerGraphicsComponent;
-import com.gdx.game.entities.player.PlayerInputComponent;
-import com.gdx.game.entities.player.PlayerPhysicsComponent;
+import com.gdx.game.entities.factory.EnemyComponentFactory;
+import com.gdx.game.entities.factory.EntityComponentFactory;
+import com.gdx.game.entities.factory.NPCComponentFactory;
+import com.gdx.game.entities.factory.PlayerComponentFactory;
 
-import java.util.Hashtable;
-
+/**
+ * 实体工厂类
+ * 使用抽象工厂模式创建不同类型的实体
+ */
 public class EntityFactory {
-
-    private static Json json = new Json();
     private static EntityFactory instance = null;
-    private Hashtable<String, EntityConfig> entities;
+    private final Map<EntityType, EntityComponentFactory> componentFactories;
+    private final Map<String, EntityConfig> entityConfigs;
+    private final Json json;
 
     public enum EntityType {
         WARRIOR,
@@ -58,91 +60,123 @@ public class EntityFactory {
     public static final String ENVIRONMENTAL_ENTITY_CONFIGS = "scripts/environmental_entities.json";
 
     private EntityFactory() {
-        entities = new Hashtable<>();
+        componentFactories = new HashMap<>();
+        entityConfigs = new HashMap<>();
+        json = new Json();
+        
+        // 注册组件工厂
+        componentFactories.put(EntityType.WARRIOR, new PlayerComponentFactory());
+        componentFactories.put(EntityType.MAGE, new PlayerComponentFactory());
+        componentFactories.put(EntityType.NPC, new NPCComponentFactory());
+        componentFactories.put(EntityType.ENEMY, new EnemyComponentFactory());
+        
+        // 加载实体配置
+        loadEntityConfigs();
+    }
 
+    private void loadEntityConfigs() {
+        // 加载NPC配置
         Array<EntityConfig> townFolkConfigs = Entity.getEntityConfigs(TOWN_FOLK_CONFIGS);
         for(EntityConfig config: townFolkConfigs) {
-            entities.put(config.getEntityID(), config);
+            entityConfigs.put(config.getEntityID(), config);
         }
 
+        // 加载敌人配置
         Array<EntityConfig> enemyConfigs = Entity.getEntityConfigs(ENEMY_CONFIG);
         for(EntityConfig config: enemyConfigs) {
-            entities.put(config.getEntityID(), config);
+            entityConfigs.put(config.getEntityID(), config);
         }
 
+        // 加载环境实体配置
         Array<EntityConfig> environmentalEntityConfigs = Entity.getEntityConfigs(ENVIRONMENTAL_ENTITY_CONFIGS);
         for(EntityConfig config: environmentalEntityConfigs) {
-            entities.put(config.getEntityID(), config);
+            entityConfigs.put(config.getEntityID(), config);
         }
 
-        entities.put(EntityName.TOWN_GUARD_WALKING.toString(), Entity.loadEntityConfigByPath(TOWN_GUARD_WALKING_CONFIG));
-        entities.put(EntityName.TOWN_BLACKSMITH.toString(), Entity.loadEntityConfigByPath(TOWN_BLACKSMITH_CONFIG));
-        entities.put(EntityName.TOWN_MAGE.toString(), Entity.loadEntityConfigByPath(TOWN_MAGE_CONFIG));
-        entities.put(EntityName.TOWN_INNKEEPER.toString(), Entity.loadEntityConfigByPath(TOWN_INNKEEPER_CONFIG));
+        // 加载特殊NPC配置
+        entityConfigs.put(EntityName.TOWN_GUARD_WALKING.toString(), Entity.loadEntityConfigByPath(TOWN_GUARD_WALKING_CONFIG));
+        entityConfigs.put(EntityName.TOWN_BLACKSMITH.toString(), Entity.loadEntityConfigByPath(TOWN_BLACKSMITH_CONFIG));
+        entityConfigs.put(EntityName.TOWN_MAGE.toString(), Entity.loadEntityConfigByPath(TOWN_MAGE_CONFIG));
+        entityConfigs.put(EntityName.TOWN_INNKEEPER.toString(), Entity.loadEntityConfigByPath(TOWN_INNKEEPER_CONFIG));
     }
 
     public static EntityFactory getInstance() {
         if (instance == null) {
             instance = new EntityFactory();
         }
-
         return instance;
     }
 
-    public Entity getEntity(EntityType entityType) {
-        Entity entity;
-        switch (entityType) {
-            case WARRIOR -> {
-                entity = new Entity(new PlayerInputComponent(), new PlayerPhysicsComponent(), new PlayerGraphicsComponent());
-                entity.setEntityConfig(Entity.getEntityConfig(EntityFactory.PLAYER_WARRIOR_CONFIG));
-                entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-                return entity;
-            }
-            case MAGE -> {
-                entity = new Entity(new PlayerInputComponent(), new PlayerPhysicsComponent(), new PlayerGraphicsComponent());
-                entity.setEntityConfig(Entity.getEntityConfig(EntityFactory.PLAYER_MAGE_CONFIG));
-                entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-                return entity;
-            }
-            case THIEF -> {
-                entity = new Entity(new PlayerInputComponent(), new PlayerPhysicsComponent(), new PlayerGraphicsComponent());
-                entity.setEntityConfig(Entity.getEntityConfig(EntityFactory.PLAYER_THIEF_CONFIG));
-                entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-                return entity;
-            }
-            case GRAPPLER -> {
-                entity = new Entity(new PlayerInputComponent(), new PlayerPhysicsComponent(), new PlayerGraphicsComponent());
-                entity.setEntityConfig(Entity.getEntityConfig(EntityFactory.PLAYER_GRAPPLER_CONFIG));
-                entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-                return entity;
-            }
-            case CLERIC -> {
-                entity = new Entity(new PlayerInputComponent(), new PlayerPhysicsComponent(), new PlayerGraphicsComponent());
-                entity.setEntityConfig(Entity.getEntityConfig(EntityFactory.PLAYER_CLERIC_CONFIG));
-                entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(entity.getEntityConfig()));
-                return entity;
-            }
-            case PLAYER_DEMO -> {
-                entity = new Entity(new NPCInputComponent(), new PlayerPhysicsComponent(), new PlayerGraphicsComponent());
-                return entity;
-            }
-            case NPC -> {
-                entity = new Entity(new NPCInputComponent(), new NPCPhysicsComponent(), new NPCGraphicsComponent());
-                return entity;
-            }
-            case ENEMY -> {
-                entity = new Entity(new NPCInputComponent(), new EnemyPhysicsComponent(), new NPCGraphicsComponent());
-                return entity;
-            }
-            default -> {
-                return null;
-            }
+    private EntityConfig getEntityConfig(EntityType entityType) {
+        String configPath = getConfigPath(entityType);
+        if (configPath == null) {
+            return null;
         }
+        return entityConfigs.get(configPath);
+    }
+
+    public Entity getEntity(EntityType entityType) {
+        EntityComponentFactory factory = componentFactories.get(entityType);
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown entity type: " + entityType);
+        }
+
+        // 使用工厂创建组件
+        Entity entity = new Entity(
+            factory.createInputComponent(),
+            factory.createPhysicsComponent(),
+            factory.createGraphicsComponent()
+        );
+
+        // 加载实体配置
+        EntityConfig config = getEntityConfig(entityType);
+        if (config != null) {
+            entity.setEntityConfig(config);
+            entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(config));
+        }
+
+        return entity;
+    }
+
+    private String getConfigPath(EntityType entityType) {
+        return switch (entityType) {
+            case WARRIOR -> PLAYER_WARRIOR_CONFIG;
+            case MAGE -> PLAYER_MAGE_CONFIG;
+            case THIEF -> PLAYER_THIEF_CONFIG;
+            case GRAPPLER -> PLAYER_GRAPPLER_CONFIG;
+            case CLERIC -> PLAYER_CLERIC_CONFIG;
+            default -> null;
+        };
     }
 
     public Entity getEntityByName(EntityName entityName) {
-        EntityConfig config = new EntityConfig(entities.get(entityName.toString()));
-        return Entity.initEntity(config);
-    }
+        EntityConfig config = entityConfigs.get(entityName.toString());
+        if (config == null) {
+            throw new IllegalArgumentException("Unknown entity name: " + entityName);
+        }
 
+        // 根据配置确定实体类型
+        EntityType entityType = "FOE".equals(config.getEntityStatus()) ? 
+            EntityType.ENEMY : 
+            EntityType.NPC;
+
+        // 使用对应的组件工厂创建实体
+        EntityComponentFactory factory = componentFactories.get(entityType);
+        if (factory == null) {
+            throw new IllegalArgumentException("No factory found for entity type: " + entityType);
+        }
+
+        // 创建实体
+        Entity entity = new Entity(
+            factory.createInputComponent(),
+            factory.createPhysicsComponent(),
+            factory.createGraphicsComponent()
+        );
+
+        // 设置配置
+        entity.setEntityConfig(new EntityConfig(config));
+        entity.sendMessage(Component.MESSAGE.LOAD_ANIMATIONS, json.toJson(config));
+
+        return entity;
+    }
 }

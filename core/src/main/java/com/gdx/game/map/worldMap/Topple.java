@@ -3,45 +3,52 @@ package com.gdx.game.map.worldMap;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Json;
 import com.gdx.game.audio.AudioObserver;
+import static com.gdx.game.audio.AudioObserver.AudioTypeEvent.TOPPLE_THEME;
 import com.gdx.game.component.Component;
 import com.gdx.game.entities.Entity;
-import com.gdx.game.entities.EntityConfig;
 import com.gdx.game.entities.EntityFactory;
 import com.gdx.game.map.Map;
 import com.gdx.game.map.MapFactory;
-import com.gdx.game.profile.ProfileManager;
-
-import static com.gdx.game.audio.AudioObserver.AudioTypeEvent.TOPPLE_THEME;
 
 public class Topple extends Map {
+    private static final String TAG = Topple.class.getSimpleName();
+    private final Json json;
 
-    private static String mapPath = "asset/map/Topple.tmx";
-    private Json json;
+    private static final String MAP_PATH = "maps/topple.tmx";
+    private static final Vector2 PLAYER_START = new Vector2(10, 10);
 
     public Topple() {
-        super(MapFactory.MapType.TOPPLE, mapPath);
-
+        super(MapFactory.MapType.TOPPLE, MAP_PATH);
         json = new Json();
 
-        Entity innKeeper = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.TOWN_INNKEEPER);
-        initSpecialEntityPosition(innKeeper);
+        // 创建NPC实体
+        Entity innKeeper = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
+        initSpecialEntityPosition(innKeeper, new Vector2(15, 15));
         mapEntities.add(innKeeper);
 
-        Entity townfolk1 = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.TOWN_FOLK1);
-        initSpecialEntityPosition(townfolk1);
+        Entity townfolk1 = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
+        initSpecialEntityPosition(townfolk1, new Vector2(20, 10));
         mapEntities.add(townfolk1);
 
-        Entity townfolk2 = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.TOWN_FOLK2);
-        initSpecialEntityPosition(townfolk2);
+        Entity townfolk2 = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
+        initSpecialEntityPosition(townfolk2, new Vector2(25, 12));
         mapEntities.add(townfolk2);
 
-        Entity townfolk3 = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.TOWN_FOLK3);
-        initSpecialEntityPosition(townfolk3);
+        Entity townfolk3 = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
+        initSpecialEntityPosition(townfolk3, new Vector2(30, 15));
         mapEntities.add(townfolk3);
 
-        Entity townfolk4 = EntityFactory.getInstance().getEntityByName(EntityFactory.EntityName.TOWN_FOLK4);
-        initSpecialEntityPosition(townfolk4);
+        Entity townfolk4 = EntityFactory.getInstance().getEntity(EntityFactory.EntityType.NPC);
+        initSpecialEntityPosition(townfolk4, new Vector2(35, 18));
         mapEntities.add(townfolk4);
+
+        playerStart = PLAYER_START;
+    }
+
+    private void initSpecialEntityPosition(Entity entity, Vector2 position) {
+        entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(position));
+        entity.sendMessage(Component.MESSAGE.INIT_STATE, json.toJson(entity.getEntityConfig().getState()));
+        entity.sendMessage(Component.MESSAGE.INIT_DIRECTION, json.toJson(entity.getEntityConfig().getDirection()));
     }
 
     @Override
@@ -58,20 +65,5 @@ public class Topple extends Map {
     public void loadMusic() {
         notify(AudioObserver.AudioCommand.MUSIC_LOAD, getMusicTheme());
         notify(AudioObserver.AudioCommand.MUSIC_PLAY_LOOP, getMusicTheme());
-    }
-
-    private void initSpecialEntityPosition(Entity entity) {
-        Vector2 position = new Vector2(0,0);
-
-        if (specialNPCStartPositions.containsKey(entity.getEntityConfig().getEntityID())) {
-            position = specialNPCStartPositions.get(entity.getEntityConfig().getEntityID());
-        }
-        entity.sendMessage(Component.MESSAGE.INIT_START_POSITION, json.toJson(position));
-
-        //Overwrite default if special config is found
-        EntityConfig entityConfig = ProfileManager.getInstance().getProperty(entity.getEntityConfig().getEntityID(), EntityConfig.class);
-        if (entityConfig != null ) {
-            entity.setEntityConfig(entityConfig);
-        }
     }
 }
