@@ -28,28 +28,14 @@ public class MapFactory {
     public static Map getMap(MapType mapType) {
         Map map = mapTable.get(mapType);
         if (map == null) {
-            switch (mapType) {
-                case TOPPLE:
-                    map = new ToppleMap();
-                    break;
-                case TOPPLE_ROAD_1:
-                    map = new ToppleRoad1Map();
-                    break;
-                case TOPPLE_ROAD_2:
-                    map = new ToppleRoad2Map();
-                    break;
-                case CASTLE:
-                    map = new CastleMap();
-                    break;
-                case DUNGEON:
-                    map = new DungeonMap();
-                    break;
-                case BATTLE_FIELD:
-                    map = new BattleFieldMap();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Map type not implemented: " + mapType);
-            }
+            map = switch (mapType) {
+                case TOPPLE -> new ToppleMap();
+                case TOPPLE_ROAD_1 -> new ToppleRoad1Map();
+                case TOPPLE_ROAD_2 -> new ToppleRoad2Map();
+                case CASTLE -> new CastleMap();
+                case DUNGEON -> new DungeonMap();
+                case BATTLE_FIELD -> new BattleFieldMap();
+            };
             mapTable.put(mapType, map);
         }
         return map;

@@ -2,7 +2,6 @@ package com.gdx.game.entities;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,7 +24,6 @@ import com.gdx.game.component.GraphicsComponent;
 import com.gdx.game.component.InputComponent;
 import com.gdx.game.component.PhysicsComponent;
 import com.gdx.game.effect.DamageModifierEffect;
-import com.gdx.game.effect.EffectPriority;
 import com.gdx.game.effect.EntityEffect;
 import com.gdx.game.effect.PriorityEffectManager;
 import com.gdx.game.event.EntityEventManager;
@@ -91,13 +89,13 @@ public class Entity {
 
 	private float health = 100f;
 	private final float baseSpeed = 5f;
-	private float currentSpeed;
+	private float moveSpeed = baseSpeed;
 	private final HashMap<String, Boolean> visualEffects = new HashMap<>();
 
 	// 攻击相关配置
-	private float attackRange = 2.0f;     // 攻击范围
-	private float attackAngle = 90f;      // 攻击角度范围(度)
-	private float attackDamage = 10f;     // 基础攻击伤害
+	private final float attackRange = 2.0f;     // 攻击范围
+	private final float attackAngle = 90f;      // 攻击角度范围(度)
+	private final float attackDamage = 10f;     // 基础攻击伤害
 
 	private GameMap currentMap;
 
@@ -105,6 +103,7 @@ public class Entity {
 		set(entity);
 		eventManager = new EntityEventManager();
 		effectManager = new PriorityEffectManager(this);
+		moveSpeed = entity.moveSpeed;
 	}
 
 	private void set(Entity entity) {
@@ -371,8 +370,7 @@ public class Entity {
 
 		// 获取当前朝向
 		Vector2 facing = getFacingDirection();
-		if (facing == null) return false;
-
+		
 		// 计算到目标的向量
 		Vector2 toTarget = new Vector2(
 			target.getCurrentPosition().x - getCurrentPosition().x,
@@ -525,18 +523,9 @@ public class Entity {
 	 * 判断是否是敌对关系
 	 */
 	private boolean isEnemy(Entity other) {
-		// 如果目标是玩家，而自己是敌人，则为敌对
-		if (other.getEntityConfig().getEntityID().equals("PLAYER") && 
-			this.getEntityConfig().getEntityStatus().equals("FOE")) {
-			return true;
-		}
-		
-		// 如果自己是玩家，而目标是敌人，则为敌对
-		if (this.getEntityConfig().getEntityID().equals("PLAYER") && 
-			other.getEntityConfig().getEntityStatus().equals("FOE")) {
-			return true;
-		}
-		
-		return false;
+		return (other.getEntityConfig().getEntityID().equals("PLAYER") && 
+				this.getEntityConfig().getEntityStatus().equals("FOE")) ||
+			   (this.getEntityConfig().getEntityID().equals("PLAYER") && 
+				other.getEntityConfig().getEntityStatus().equals("FOE"));
 	}
 }
