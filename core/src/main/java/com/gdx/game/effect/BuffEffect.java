@@ -4,53 +4,99 @@ import com.gdx.game.entities.Entity;
 
 /**
  * 增益效果
- * 提升实体属性
+ * 提升目标的攻击力和速度
  */
-public class BuffEffect extends BaseEffect implements DamageModifierEffect {
-    private float damageBonus;    // 伤害加成(百分比)
-    private float speedBonus;     // 速度加成(百分比)
-    private boolean applied;      // 是否已应用加成
+public class BuffEffect extends BaseEffect {
+    private float damageBonus;    // 攻击力提升百分比(0-1)
+    private float speedBonus;     // 速度提升百分比(0-1)
     
-    /**
-     * 创建增益效果
-     * @param duration 持续时间(秒)
-     * @param damageBonus 伤害加成百分比(0+)
-     * @param speedBonus 速度加成百分比(0+)
-     */
     public BuffEffect(float duration, float damageBonus, float speedBonus) {
-        super(duration, 1.0f);
-        this.damageBonus = Math.max(0, damageBonus);
-        this.speedBonus = Math.max(0, speedBonus);
-        this.applied = false;
+        super(duration, Math.max(damageBonus, speedBonus), EffectType.BUFF);
+        this.damageBonus = Math.min(1.0f, Math.max(0, damageBonus));    // 限制在0-1之间
+        this.speedBonus = Math.min(1.0f, Math.max(0, speedBonus));      // 限制在0-1之间
     }
     
     @Override
-    protected void applyEffect(Entity entity, float delta) {
-        if (!applied) {
-            // 应用速度加成
-            float newSpeed = entity.getBaseSpeed() * (1 + speedBonus);
-            entity.setMoveSpeed(newSpeed);
+    protected void applyEffect(float delta) {
+        // 增益效果主要在开始和结束时起作用
+        // 这里可以添加额外的视觉效果更新
+        if (target != null) {
+            // 更新增益特效
+            target.updateVisualEffect("buff", delta);
+        }
+    }
+    
+    @Override
+    protected void onEffectStart() {
+        if (target != null) {
+            // 应用攻击力提升
+            target.modifyAttackPower(damageBonus);
+            
+            // 应用速度提升
+            target.modifyMoveSpeed(speedBonus);
             
             // 添加增益视觉效果
-            entity.addVisualEffect("buff");
+            target.addVisualEffect("buff");
             
-            applied = true;
+            // 播放增益音效
+            target.playEffectSound("buff");
+            
+            // 显示增益图标
+            target.showStatusIcon("buff");
         }
     }
     
     @Override
-    public float getDamageMultiplier() {
-        return 1.0f + damageBonus;
-    }
-    
-    @Override
-    public boolean isFinished() {
-        boolean finished = super.isFinished();
-        if (finished && applied && target != null) {
-            // 效果结束时恢复原速度
-            target.setMoveSpeed(target.getBaseSpeed());
+    protected void onEffectEnd() {
+        if (target != null) {
+            // 移除攻击力提升
+            target.modifyAttackPower(-damageBonus);
+            
+            // 移除速度提升
+            target.modifyMoveSpeed(-speedBonus);
+            
+            // 移除增益视觉效果
             target.removeVisualEffect("buff");
+            
+            // 移除增益图标
+            target.hideStatusIcon("buff");
         }
-        return finished;
+    }
+    
+    @Override
+    public String getDescription() {
+        StringBuilder desc = new StringBuilder("增益效果 (");
+        if (damageBonus > 0) {
+            desc.append(String.format("攻击+%.0f%% ", damageBonus * 100));
+        }
+        if (speedBonus > 0) {
+            desc.append(String.format("速度+%.0f%% ", speedBonus * 100));
+        }
+        desc.append(String.format("%.1f秒)", getRemainingTime()));
+        return desc.toString();
+    }
+    
+    public float getDamageBonus() {
+        return damageBonus;
+    }
+    
+    public float getSpeedBonus() {
+        return speedBonus;
+    }
+    
+    /**
+     * 检查目标是否可以被增益
+     * @param target 目标实体
+     * @return true 如果目标可以被增益
+     */
+    public static boolean canBeBuffed(Entity target) {
+        // 检查目标是否免疫增益
+        if (target.isImmuneToBuff()) {
+            return false;
+        }
+        
+        // 检查目标当前增益状态
+        float currentBuffAmount = target.getCurrentBuffAmount();
+        return currentBuffAmount < 2.0f;  // 最多提升200%
     }
 } 
